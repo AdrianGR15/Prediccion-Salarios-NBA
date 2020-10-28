@@ -1,0 +1,374 @@
+---
+title: "Una estimacion de los salarios de la NBA"
+author: "Adrian Gonzalez Retamosa"
+date: "10/28/2020"
+output: pdf_document
+
+---
+
+# ESQUEMA 
+
+1. Descripcion del DataSet
+
+2. Tratamiento del DataSet  
+
+3. Regresion global   
+
+4. Analisis de los regresores estadisticamente significativos
+
+5. Metodo de seleccion de variables
+
+6. Eleccion del modelo
+
+7. Analisis de los residuos del modelo
+
+8. Predicciones
+
+
+
+## 1. Descripcion del DataSet
+
+Las variables a trabjar son:
+
+Player - Nombre jugador 
+
+Salary - Salario del jugador 
+
+NBA_Country - Pais origen jugador 
+
+NBA_DraftNumber - Numero en el Draft del jugador 
+
+Age - años
+
+Tm - Equipo del jugador  
+
+G - Partidos jugados 
+
+MPMP = Minutos jugados
+
+PER - Índice de eficiencia del jugador Una medida de la producción por minuto estandarizada de manera que el promedio de la liga es 15.
+
+TSp - Porcentaje de tiros reales Una medida de la eficiencia de los tiros que tiene en cuenta tiros de campo de 2 puntos, tiros de campo de 3 puntos y tiros libres.
+
+3PAr - Tasa de intentos de 3 puntos Porcentaje de intentos de FG desde el rango de 3 puntos
+
+FTr - Tasa de intentos de tiros libres Número de intentos de FT por intento de tiro libre
+
+ORBp - Porcentaje de rebote ofensivo Una estimación del porcentaje de rebotes ofensivos disponibles que un jugador agarró mientras estaba en la cancha.
+
+DRBp - Porcentaje de rebote defensivo Una estimación del porcentaje de rebotes defensivos disponibles que un jugador agarró mientras estaba en la cancha.
+
+TRBp - Porcentaje de rebote total Una estimación del porcentaje de rebotes disponibles que un jugador agarró mientras estaba en la cancha.
+
+ASTp - Porcentaje de asistencia Una estimación del porcentaje de goles de campo de un compañero de equipo que un jugador ayudó mientras estaba en la cancha.
+
+STLp - Porcentaje de robo Una estimación del porcentaje de posesiones del oponente que terminan con un robo del jugador mientras estaba en la cancha.
+
+BLKp - Porcentaje de bloqueo Una estimación del porcentaje de intentos de gol de campo de dos puntos del oponente bloqueados por el jugador mientras estaba en el suelo.
+
+TOVp - Porcentaje de rotación Una estimación de las pérdidas de balón cometidas por cada 100 jugadas.
+
+USGp - Porcentaje de uso Una estimación del porcentaje de jugadas de equipo utilizadas por un jugador mientras estaba en la cancha.
+
+OWS - Offensive Win Shares Una estimación del número de victorias aportadas por un jugador debido a su infracción.
+
+DWS - Defensive Win Shares Una estimación del número de victorias aportadas por un jugador debido a su defensa.
+
+WS - Win Shares Una estimación del número de victorias aportadas por un jugador.
+
+WS / 48 - Acciones de ganancias por 48 minutos Una estimación del número de victorias aportadas por un jugador por 48 minutos (el promedio de la liga es aproximadamente .100)
+
+OBPM - Offensive Box Plus / Minus Una estimación de la puntuación de la caja de los puntos ofensivos por cada 100 posesiones que un jugador contribuyó por encima de un jugador promedio de la liga, traducido a un equipo promedio.
+
+DBPM - Defensive Box Plus / Minus Una estimación de la puntuación de caja de los puntos defensivos por cada 100 posesiones que un jugador contribuyó por encima de un jugador promedio de la liga, traducido a un equipo promedio.
+
+BPM - Box Plus / Minus Una estimación de la puntuación de caja de los puntos por cada 100 posesiones que un jugador contribuyó por encima de un jugador promedio de la liga, traducido a un equipo promedio.
+
+VORP - Valor sobre el jugador de reemplazo Una estimación de la puntuación de los puntos por cada 100 posesiones del EQUIPO que un jugador contribuyó por encima de un jugador de nivel de reemplazo (-2.0), traducido a un equipo promedio y prorrateado a una temporada de 82 juegos
+
+El objetivo del trabajo es: 
+
+La construccion de un modelo a traves de los algoritmos de eleccion de variables con el fin de construir la prediccion mas acertada posible. 
+
+
+## 2. Carga y tratamiento del DataSet 
+
+````{r  echo = FALSE, include=FALSE}
+library(readr)
+library(ggplot2)
+library(leaps)
+library(MASS)
+library(gvlma)
+library(car)
+library(corrplot)
+library(Hmisc)
+library(tidyverse)
+```
+
+```{r include=FALSE}
+nba <- read_csv('nba1.csv')
+```
+
+Una vez que tenemos cargado el DataSet vamos a cambiar el nombre de sus columnas para verlo de una forma mas clara, omitir las observaciones con algun dato NaN y eliminar las observaciones repetidadas. 
+
+Por otro lado, eliminaremos de nuestro DataFrame las variales Player, NBA_Country, Tm ya que no son significativas estadisticamente
+
+```{r echo=FALSE}
+attach(nba) #fijamos esta base de datos 
+nba <- na.omit(nba)
+names(nba) <- c("Player", "Salary", "NBA_Country", "NBA_DraftNumber", "Age", "Tm", "G", "MP" , "PER", "TSp", "3PAr", "FTr", "ORBp", "DRBp", "TRBp", "ASTp", "STLp", "BLKp", "TOVp", "USGp", "OWS", "DWS", 'WS', 'WSd48', 'OBPM', 'DBPM', 'BPM', 'VORP' )
+nba <- nba[!duplicated(nba$Player),]
+nba <- nba %>% 
+  dplyr::select(!c( Player, NBA_Country, Tm))
+names(nba)
+```
+
+
+## 3. Regresion global 
+
+Para realizar un primer acercamiento a nuestro datos vamos a correr dos regresion, ambas ellas incluyendo todas las variables, con la diferencia de poner nuestra variable dependiente en terminos de logaritmos o no. 
+
+### 3.1. Regresion en terminos NO logaritmicos 
+
+```{r}
+m1 <- lm(Salary ~ . , nba)
+summary(m1) 
+```
+
+Observamos que hay muchas variables que no son significativas estadisticamente 
+
+Los criterios de informacion de este modelo son:
+
+```{r}
+AIC(m1)
+BIC(m1)
+```
+
+### 3.2. Regresion en terminos logaritmicos 
+
+```{r echo=FALSE}
+m1_ln <- lm(log(Salary, base = 10) ~ . , nba )
+summary(m1_ln)  
+
+```
+
+Tambien comprobamos que hay variables no significaticvas pero este modelo presenta un mayor R2 adj 
+
+Los criterios de informacion de este modelo son:
+
+```{r}
+AIC(m1_ln)
+BIC(m1_ln)
+```
+
+Analizando los dos modelos y sus criterios de informacion vamos a tomar la decision de poner la variable dependiente en terminos Logaritmicos. 
+
+
+## 4. Analisis de los regresores estadisticamente significativos
+
+En este apartado nos vamos a quedar solo con los regresores signioficativos para estudiar la relacion entre ellos y con la variable dependiente. Para ello construiremos un nuevo DataFramre que solo contenga estas variables. 
+
+A continuacion presentamos un grafico de distribucion de cada una de las variables, asi como la representacion de la dipersion entre cada una de ellas. En este grafico observamos como, por ejemplo, las variables NBA_DraftNumber y MP siguen una distribucion binomial. 
+
+```{r echo=FALSE, warning=FALSE, fig.align="center"}
+ nba_lm <- nba %>% 
+  dplyr::select(Salary, NBA_DraftNumber, Age, MP, PER, TSp, TOVp, USGp, WSd48)
+
+scatterplotMatrix(nba_lm, spread=FALSE, smoother.args=list(lty=2), main="Scatter Plot Matrix")
+```
+
+El siguiente grafico a representar es un mapa de calor que nos indica las correlaciones que hay entre estas variables.En esta representacion observamos algo que era de esperar, ya que comprabamos una relacion negativa de la variable NBA_DraftNumber con todas las demas. Tambien nos podemos fijar en la alta correlacion que hay entre variables como TSp, PER y WSd48. 
+
+```{r echo=FALSE, warning=FALSE, fig.align="center"}
+pearson <- rcorr(as.matrix(nba_lm),type="pearson")
+corrplot(pearson$r,type = "upper", is.corr = F, tl.col = "orange", tl.offset = 0.1, tl.srt = 30)
+```
+
+
+## 5. Metodo de seleccion de variables
+
+En el siguiente apartado pondremos en practica tres algoritmos que nos indicaran que regresores deberemos incluir en nuestro modelo para que sea lo mas preciso posible. Esta eleccion la realizaremos a traves de sus criterios de informacion, el Cp y R2 Adj.
+
+### 5.1. BEST SUBSET
+
+Consiste en estimar todas las regresiones posibles con todas las combinaciones de los n
+regresores y asi encontrar aquel modelo. 
+
+```{r echo=FALSE, warning=FALSE}
+regfit_full=regsubsets(log(Salary, base = 10) ~ . , nba)
+reg_summary1=summary(regfit_full)
+reg_summary1
+```
+
+```{r warning=FALSE}
+reg_summary1$rss # Por la SRC el mejor modelo seria el (8)
+reg_summary1$cp # Por el estadistico Cp el mejor modelo seria el (8)
+reg_summary1$bic # Por el metodo bayesiano el mejor modelo seria el (4)
+```
+
+Observando los criterios de informacion el modelo sugerido por este metodo seria:
+
+Log Salary = b1*NBA_DraftNumber + b2*Age + b3*MP + b4*PER + b5*TSp + b6*DRBp + b7*USGp + b8*BPM + Ut
+
+### 5.2. FORWARD STEPWISE
+
+Este metodo consiste en empezar con un  modelo que no incluye ningún regresor y se van añadiendo regresores de uno en uno. En cada etapa la variable que más mejora adicional aporta al modelo es incluida.
+
+```{r echo=FALSE}
+regfit_fwd=regsubsets(log(Salary, base = 10) ~ . , nba, method ="forward")
+reg_summary_fwd <- summary (regfit_fwd )
+reg_summary_fwd
+```
+
+```{r warning=FALSE}
+reg_summary_fwd$rss # Por la SRC el mejor modelo seria el (8)
+reg_summary_fwd$cp ## Por el estadistico Cp el mejor modelo seria el (8)
+reg_summary_fwd$bic # Por el metodo bayesiano el mejor modelo seria el (4)
+```
+
+Con este algoritmo elegiriamos el mismo modelo que por el metodo Best Subset 
+
+### 5.3. BACKWARD STEPWISE
+
+Empieza con un modelo que incluye todos los regresores y se van eliminando regresores de uno en uno. En cada etapa la variable que menos mejora adicional aporta al modelo es excluida.
+
+```{r include=FALSE}
+stepAIC(m1_ln, direction="backward")
+```
+
+Con este metodo el el modelo quedaria de la siguiente forma:
+
+Log Salary = b1*NBA_DraftNumber + b2*Age + b3*MP + b4*PER + b5*TSp + b6*DRBp + b7*USGp + b8*BPM + b9*TRBp +b10*ASTp +  b11*TOVp + b12*DWS + b13*WSd48 + b14*OBPM + Ut
+
+
+## 6. Eleccion del modelo
+
+Una vez que hemos utilizado los 3 algoritmos para la seleccion de variables pasamos a comprobar cual de los 2 modelos propuestos presenta unos mejores criterios de informacion y un mejor R2 adj
+
+### 6.1. Modelo obtenido por el metodo Best Subset 
+
+Log Salary = b1*NBA_DraftNumber + b2*Age + b3*MP + b4*PER + b5*TSp + b6*DRBp + b7*USGp + b8*BPM + Ut
+
+```{r include=FALSE}
+model8 <- lm(log(Salary, base = 10) ~ NBA_DraftNumber + Age + MP + PER + TSp + DRBp + USGp + BPM, nba)
+summary(model8)
+```
+
+Este modelo presenta un R2 adj de 53,34% y sus criterios de informacion son :
+```{r}
+AIC(model8)
+BIC(model8)
+```
+
+### 6.2. Modelo obtenido por el metodo Backward Stepwise
+
+Log Salary = b1*NBA_DraftNumber + b2*Age + b3*MP + b4*PER + b5*TSp + b6*DRBp + b7*USGp + b8*BPM + b9*TRBp +b10*ASTp +  b11*TOVp + b12*DWS + b13*WSd48 + b14*OBPM + Ut
+
+```{r include=FALSE}
+m1_b <- lm(formula = log(Salary, base = 10) ~ NBA_DraftNumber + Age + 
+     MP + PER + TSp + TRBp + ASTp + TOVp + USGp + DWS + WSd48 + 
+     OBPM + BPM, data = nba)
+summary(m1_b)  
+```
+
+Este modelo presenta un R2 adj de 54,11% y sus criterios de informacion son :
+
+```{r}
+AIC(m1_b)
+BIC(m1_b)
+```
+
+Despues de analizar ambos modelos nos vamos a quedar con 'm1_b' ya que es el que mejor R2 adj presenta y tiene un mejor valor para el criterio de informacion de Akaike. Sera a este modelo al que le realizaremos una analisis a sus residuos para la posterior prediccion. 
+
+```{r }
+m1_b <- lm(formula = log(Salary, base = 10) ~ NBA_DraftNumber + Age + 
+     MP + PER + TSp + TRBp + ASTp + TOVp + USGp + DWS + WSd48 + 
+     OBPM + BPM, data = nba)
+summary(m1_b)  
+```
+
+
+## 7. Analisis de los residuos del modelo
+
+### 7.1. Normalidad
+
+Con los siguientes dos graficos podemos observar cual el la distribucion de los residuos de nuestro modelo
+
+```{r echo=FALSE}
+qqPlot(m1_b, labels=row.names(nba), id.method="identify",
+       simulate=TRUE, main="Q-Q Plot")
+```
+
+```{r echo=FALSE, fig.align="center" }
+residplot <- function(m1_b, nbreaks=10) {  
+  z <- rstudent(m1_b)     
+  hist(z, breaks=nbreaks, freq=FALSE, ylim = c(0,0.45),         
+       xlab="Studentized Residual",main="Distribucion de los errores")     
+  rug(jitter(z), col="brown")      
+  curve(dnorm(x, mean=mean(z), sd=sd(z)),                
+        add=TRUE, col="blue", lwd=2)           
+  lines(density(z)$x, density(z)$y,             
+        col="red", lwd=2, lty=2)          
+  legend("topright",                    
+         legend = c( "Normal Curve", "Kernel Density Curve"),                 
+         lty=1:2, col=c("blue","red"), cex=.4)        
+} 
+residplot(m1_b)
+```
+
+Para confirma la normalidad de los residuos realizaremos el constraste de Shapiro-Wilk. Obtenemos un Pvalor = 0,004, inferior que el 5%, por lo que rechazamos la Hipotesis Nula de normalidad de los residuos.  
+
+```{r}
+shapiro.test(resid(m1_b))
+```
+
+### 7.2. Homoscedasticidad
+
+Con un Pvalor menor al 5% en el constraste de Breusch-Pagan rechazmos la hipotesis nula de que los resiudos tienen varinza constante 
+
+```{r}
+ncvTest(m1_b)
+spreadLevelPlot(m1_b)
+```
+
+### 7.3. Contraste global 
+
+Con la realizacion del test global observamos que nuestro modelo pasa el test de simetria y el de homoscedasticidad, a pesar de lo que nos digo el constraste de Breusch-Pagan, pero en general es un modelo con problemas estadistico en su utilizacion para explicar la variable dependiente. 
+
+```{r}
+gvlma(m1_b) 
+```
+
+
+## 8. Preddiccion
+
+En el ultimo apartado observaremos como de fiable es nuestro modelo a la hora de la prediccion.
+
+Lo primero calcularemos la desviacion tipica de los residuos de nuestro modelo ya que es un buen indicador a la hora de predecir y observamos que es relativamente baja
+
+```{r}
+sd(resid(m1_b))
+```
+
+Acontinuacion construiremos una tabla con tres columnas, el valor real del salario, el valor que predice nuestro modelo y la diferencia de ambos en valor absoluto 
+
+```{r echo=FALSE}
+nba$predLogSalary <- predict(m1_b, nba)
+
+nba <- nba %>% 
+  dplyr::mutate(LogSal = log(Salary, base = 10),
+         difSalary = abs(LogSal - predLogSalary) )
+
+pre_salary <- nba %>% 
+  dplyr::select(LogSal, predLogSalary, difSalary)
+pre_salary
+```
+
+Para finalizar este trabajo calcularemos la media y la desviacion tipica de la diferencia del salario real y del salario estimado para comprobar en cuanto se equivoca nuestro modelo 
+
+```{r warning=FALSE}
+mean(pre_salary$difSalary)
+sd(pre_salary$difSalary)
+```
+
+
